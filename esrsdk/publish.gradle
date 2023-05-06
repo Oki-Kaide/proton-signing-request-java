@@ -1,0 +1,61 @@
+apply plugin: 'maven-publish'
+
+def LIB_GROUP_ID = 'com.metallicus'
+def LIB_ARTIFACT_ID = 'esrsdk'
+def LIB_VERSION = '1.0.1'
+
+task sourceJar(type: Jar) {
+	from android.sourceSets.main.java.srcDirs
+	classifier "sources"
+}
+
+publishing {
+	repositories {
+		maven {
+			name = "GithubPackages"
+			url = uri("https://maven.pkg.github.com/ProtonProtocol/ProtonKotlin")
+			credentials {
+				Properties properties = new Properties()
+				properties.load(project.rootProject.file('local.properties').newDataInputStream())
+
+				username = properties.getProperty('github.username')
+				password = properties.getProperty('github.token')
+			}
+		}
+		maven {
+			name = 'LocalTest'
+			url = uri("$buildDir/repo")
+		}
+	}
+	publications {
+		esrsdk(MavenPublication) {
+			groupId LIB_GROUP_ID
+			artifactId LIB_ARTIFACT_ID
+			version LIB_VERSION
+			artifact("$buildDir/outputs/aar/esrsdk-release.aar")
+			artifact(sourceJar)
+
+			pom.withXml {
+				def dependenciesNode = asNode().appendNode('dependencies')
+
+				configurations.implementation.allDependencies.each {
+					def dependencyNode = dependenciesNode.appendNode('dependency')
+					dependencyNode.appendNode('groupId', it.group)
+					dependencyNode.appendNode('artifactId', it.name)
+					dependencyNode.appendNode('version', it.version)
+					dependencyNode.appendNode('scope', 'runtime')
+
+					// special case for j2v8
+					if (it.group == 'com.eclipsesource.j2v8'){
+						dependencyNode.appendNode('type', 'aar')
+
+						def exclusionsNode = dependencyNode.appendNode('exclusions')
+						def exclusionNode = exclusionsNode.appendNode('exclusion')
+						exclusionNode.appendNode('artifactId', '*')
+						exclusionNode.appendNode('groupId', '*')
+					}
+				}
+			}
+		}
+	}
+}
